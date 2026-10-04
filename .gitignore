@@ -1,0 +1,12 @@
+frontend/node_modules
+
+meals.db
+meals.db-shm
+meals.db-wal
+
+backend/.venv
+backend/ingredients.csv
+backend/.python-version
+
+backend/__pycache__
+frontend/dist
