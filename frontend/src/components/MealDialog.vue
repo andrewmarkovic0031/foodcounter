@@ -27,7 +27,7 @@ const form = reactive({ meal_type: 'lunch', eaten_at: '', notes: '', rows: [] })
 const foodOptions = computed(() =>
   store.foods.map((food) => ({
     id: food.id,
-    label: `${food.name}${food.kilojoules != null ? ` · ${food.kilojoules} kilojoules` : ''}`
+    label: `${food.name}${food.kilojoules != null ? ` · ${Math.round(food.kilojoules)} kJ` : ''}`
   }))
 )
 let uid = 0
