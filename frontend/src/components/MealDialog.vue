@@ -115,7 +115,6 @@ async function save() {
 }
 
 async function remove() {
-  if (!confirm('Delete this meal?')) return
   busy.value = true
   try {
     await api.deleteMeal(editingId.value)

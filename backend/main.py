@@ -1,6 +1,12 @@
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
+import json
+import os
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from loguru import logger
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, status
 from fastapi.staticfiles import StaticFiles
@@ -22,8 +28,108 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Meal Tracker", lifespan=lifespan)
 router = APIRouter(prefix="/api")  # the Vue app is served at /, the API lives under /api
 
+USDA_API_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
+USDA_NUTRIENTS = {
+    "kilojoules_per_100g": (1062, 2048, 2047, 1008),
+    "protein_per_100g": (1003,),
+    "carbohydrates_per_100g": (1005,),
+    "sugar_per_100g": (1063, 2000,),
+    "fat_per_100g": (1004,),
+}
+
 
 # ---------- helpers ----------
+def usda_nutrients(food: dict) -> dict[str, float | None]:
+    nutrient_values: dict[int, float] = {}
+    for nutrient in food.get("foodNutrients", []):
+        nutrient_id = nutrient.get("nutrientId")
+        if nutrient_id is None and isinstance(nutrient.get("nutrient"), dict):
+            nutrient_id = nutrient["nutrient"].get("id")
+        if nutrient_id is None:
+            continue
+        amount = nutrient.get("value", nutrient.get("amount"))
+        if amount is not None:
+            nutrient_values[int(nutrient_id)] = float(amount)
+
+    result: dict[str, float | None] = {}
+    for field, nutrient_ids in USDA_NUTRIENTS.items():
+        value = next(
+            (nutrient_values[nutrient_id] for nutrient_id in nutrient_ids
+             if nutrient_id in nutrient_values),
+            None,
+        )
+        if field == "kilojoules_per_100g" and value is not None:
+            selected_id = next(nutrient_id for nutrient_id in nutrient_ids if nutrient_id in nutrient_values)
+            if selected_id != 1062:
+                value *= 4.184
+        result[field] = value
+    return result
+
+
+def search_usda_foods(query: str, limit: int) -> list[dict]:
+    api_key = os.getenv("USDA_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "USDA search is not configured. Set USDA_API_KEY on the backend.",
+        )
+
+    request = Request(
+        f"{USDA_API_URL}?{urlencode({'api_key': api_key})}",
+        data=json.dumps(
+            {
+                "query": query,
+                "pageSize": limit,
+                "dataType": ["Foundation"],
+            }
+        ).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read())
+    except HTTPError as error:
+        if error.code == 429:
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "USDA search rate limit reached. Try again later.",
+            ) from error
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            f"USDA search failed with status {error.code}.",
+        ) from error
+    except (URLError, TimeoutError) as error:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, "Could not reach USDA FoodData Central."
+        ) from error
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, "USDA returned an invalid search response."
+        ) from error
+
+    foods = payload.get("foods") if isinstance(payload, dict) else None
+    if not isinstance(foods, list):
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, "USDA returned an invalid search response."
+        )
+
+    results = []
+    for food in foods:
+        if not isinstance(food, dict) or not food.get("description"):
+            continue
+        results.append(
+            {
+                "fdc_id": food["fdcId"],
+                "description": food["description"],
+                "data_type": food.get("dataType"),
+                "brand_owner": food.get("brandOwner"),
+                **usda_nutrients(food),
+            }
+        )
+    return results
+
+
 def get_food_or_404(db: Session, food_id: int) -> models.Food:
     stmt = (
         select(models.Food)
@@ -102,6 +208,16 @@ def build_items(db: Session, items: list[schemas.MealItemCreate]) -> list[models
 
 
 # ---------- ingredients ----------
+@router.get(
+    "/ingredients/usda/search", response_model=list[schemas.USDAFoodSearchResult]
+)
+def search_ingredients_usda(
+    q: str = Query(min_length=2, max_length=100),
+    limit: int = Query(default=10, ge=1, le=25),
+):
+    return search_usda_foods(q, limit)
+
+
 @router.post(
     "/ingredients",
     response_model=schemas.IngredientRead,

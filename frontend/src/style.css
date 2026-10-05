@@ -551,6 +551,39 @@ textarea {
 .profile-form .grid2 {
   width: 100%;
 }
+.usda-search {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.usda-search .grow {
+  flex: 1;
+}
+.usda-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.usda-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+.usda-result-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.usda-result-copy .muted {
+  font-size: 13px;
+}
+.usda-result .btn {
+  min-width: 64px;
+}
 .accent-picker {
   width: 100%;
 }

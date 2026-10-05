@@ -30,6 +30,8 @@ const withBody = (method, body) => ({ method, body: JSON.stringify(body) })
 export const api = {
   // ingredients
   listIngredients: () => request('/ingredients?limit=200'),
+  searchUSDAIngredients: (query) =>
+    request(`/ingredients/usda/search?q=${encodeURIComponent(query)}&limit=10`),
   createIngredient: (body) => request('/ingredients', withBody('POST', body)),
   updateIngredient: (id, body) => request(`/ingredients/${id}`, withBody('PATCH', body)),
   deleteIngredient: (id) => request(`/ingredients/${id}`, { method: 'DELETE' }),

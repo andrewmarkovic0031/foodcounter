@@ -30,6 +30,18 @@ class IngredientRead(IngredientCreate):
     id: int
 
 
+class USDAFoodSearchResult(BaseModel):
+    fdc_id: int
+    description: str
+    data_type: str | None = None
+    brand_owner: str | None = None
+    kilojoules_per_100g: float | None = None
+    protein_per_100g: float | None = None
+    carbohydrates_per_100g: float | None = None
+    sugar_per_100g: float | None = None
+    fat_per_100g: float | None = None
+
+
 # ---------- Foods ----------
 class FoodIngredientCreate(BaseModel):
     ingredient_id: int

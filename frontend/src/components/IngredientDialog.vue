@@ -10,6 +10,10 @@ const nameInput = ref(null)
 const editing = ref(null)
 const error = ref('')
 const busy = ref(false)
+const mode = ref('manual')
+const searchQuery = ref('')
+const searchResults = ref([])
+const searching = ref(false)
 let stopViewportTracking = null
 const form = reactive({
   name: '',
@@ -33,7 +37,10 @@ const toNum = (value) => (value === '' || value == null ? null : Number(value))
 
 async function open(ingredient = null) {
   editing.value = ingredient
+  mode.value = 'manual'
   error.value = ''
+  searchQuery.value = ''
+  searchResults.value = []
   form.name = ingredient?.name ?? ''
   for (const [field] of nutrients) form[field] = show(ingredient?.[field])
   await nextTick()
@@ -46,6 +53,52 @@ async function open(ingredient = null) {
 function onClose() {
   stopViewportTracking?.()
   stopViewportTracking = null
+}
+
+async function searchUSDA() {
+  error.value = ''
+  searchResults.value = []
+  const query = searchQuery.value.trim()
+  if (query.length < 2) {
+    error.value = 'Enter at least two characters to search USDA.'
+    return
+  }
+
+  searching.value = true
+  try {
+    searchResults.value = await api.searchUSDAIngredients(query)
+    if (!searchResults.value.length) error.value = 'No matching USDA foods found.'
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    searching.value = false
+  }
+}
+
+async function addUSDAIngredient(result) {
+  error.value = ''
+  if (result.description.length > 100) {
+    error.value = 'This USDA name is longer than 100 characters and cannot be added.'
+    return
+  }
+  busy.value = true
+  try {
+    await api.createIngredient({
+      name: result.description,
+      kilojoules_per_100g: result.kilojoules_per_100g,
+      protein_per_100g: result.protein_per_100g,
+      carbohydrates_per_100g: result.carbohydrates_per_100g,
+      sugar_per_100g: result.sugar_per_100g,
+      fat_per_100g: result.fat_per_100g
+    })
+    await refreshCatalogs()
+    el.value.close()
+    notify('USDA ingredient added')
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
+  }
 }
 
 async function refreshCatalogs() {
@@ -98,6 +151,28 @@ defineExpose({ open })
       </header>
 
       <div class="sheet-scroll">
+        <div v-if="!editing" class="seg-options" aria-label="Ingredient source">
+          <button
+            type="button"
+            class="btn"
+            :class="{ secondary: mode !== 'manual' }"
+            :aria-pressed="mode === 'manual'"
+            @click="mode = 'manual'; error = ''"
+          >
+            Create manually
+          </button>
+          <button
+            type="button"
+            class="btn"
+            :class="{ secondary: mode !== 'usda' }"
+            :aria-pressed="mode === 'usda'"
+            @click="mode = 'usda'; error = ''"
+          >
+            Search USDA
+          </button>
+        </div>
+
+        <template v-if="mode === 'manual'">
         <div class="field">
           <label for="ingredient-name">Name</label>
           <input
@@ -129,6 +204,52 @@ defineExpose({ open })
             </div>
           </div>
         </div>
+        </template>
+
+        <template v-else>
+          <p class="muted">
+            Search USDA FoodData Central, then add a result to your ingredient list.
+            Nutrition values are per 100 g.
+          </p>
+          <div class="usda-search">
+            <div class="field grow">
+              <label for="usda-search-query">Food name</label>
+              <input
+                id="usda-search-query"
+                v-model="searchQuery"
+                type="search"
+                minlength="2"
+                placeholder="e.g. rolled oats"
+                autocomplete="off"
+                @keydown.enter.prevent="searchUSDA"
+              />
+            </div>
+            <button type="button" class="btn secondary" :disabled="searching" @click="searchUSDA">
+              {{ searching ? 'Searching…' : 'Search' }}
+            </button>
+          </div>
+
+          <ul v-if="searchResults.length" class="usda-results" aria-label="USDA search results">
+            <li v-for="result in searchResults" :key="result.fdc_id" class="card usda-result">
+              <div class="usda-result-copy">
+                <strong>{{ result.description }}</strong>
+                <span class="muted">
+                  {{ result.data_type }}<template v-if="result.brand_owner"> · {{ result.brand_owner }}</template>
+                </span>
+                <span class="muted">
+                  {{ result.kilojoules_per_100g == null ? '–' : Math.round(result.kilojoules_per_100g) }} kJ
+                  · P {{ result.protein_per_100g ?? '–' }} g
+                  · C {{ result.carbohydrates_per_100g ?? '–' }} g
+                  · F {{ result.fat_per_100g ?? '–' }} g
+                  · S {{ result.sugar_per_100g ?? '–' }} g
+                </span>
+              </div>
+              <button type="button" class="btn" :disabled="busy" @click="addUSDAIngredient(result)">
+                Add
+              </button>
+            </li>
+          </ul>
+        </template>
 
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
@@ -137,7 +258,7 @@ defineExpose({ open })
         <button v-if="editing" type="button" class="btn danger" :disabled="busy" @click="remove">
           Delete
         </button>
-        <button type="submit" class="btn grow" :disabled="busy">
+        <button v-if="mode === 'manual'" type="submit" class="btn grow" :disabled="busy">
           {{ busy ? 'Saving…' : 'Save' }}
         </button>
       </footer>

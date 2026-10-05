@@ -6,7 +6,8 @@ meals.db-wal
 
 backend/.venv
 backend/ingredients.csv
-backend/.python-version
 
 backend/__pycache__
 frontend/dist
+
+.env
