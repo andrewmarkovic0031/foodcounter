@@ -166,6 +166,12 @@ class DailySummary(BaseModel):
     sugar: float
 
 
+class LeaderboardEntry(BaseModel):
+    user_id: int
+    name: str
+    calories: float
+
+
 # ---------- Profile ----------
 class ProfileGoalsData(BaseModel):
     kilojoules: float | None = Field(default=None, ge=0)

@@ -10,7 +10,7 @@ from loguru import logger
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, status
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import inspect, select, text, update
+from sqlalchemy import func, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -913,6 +913,41 @@ def daily_summary(
                     item.food.nutrition_per_serving(key) or 0
                 ) * item.quantity
     return schemas.DailySummary(date=day.isoformat(), meals=len(meals), **totals)
+
+
+@router.get("/leaderboard", response_model=list[schemas.LeaderboardEntry])
+def calorie_leaderboard(db: Session = Depends(get_db)):
+    calories = (
+        func.coalesce(models.Ingredient.kilojoules_per_100g, 0)
+        * func.coalesce(models.FoodIngredient.grams, 0)
+        / 100
+        / models.Food.servings
+        * models.MealItem.quantity
+        / 4.184
+    )
+    stmt = (
+        select(
+            models.User.id.label("user_id"),
+            func.coalesce(models.User.name, models.User.email).label("name"),
+            func.coalesce(func.sum(calories), 0).label("calories"),
+        )
+        .outerjoin(models.Meal, models.Meal.owner_id == models.User.id)
+        .outerjoin(models.MealItem, models.MealItem.meal_id == models.Meal.id)
+        .outerjoin(models.Food, models.Food.id == models.MealItem.food_id)
+        .outerjoin(
+            models.FoodIngredient,
+            models.FoodIngredient.food_id == models.Food.id,
+        )
+        .outerjoin(
+            models.Ingredient,
+            models.Ingredient.id == models.FoodIngredient.ingredient_id,
+        )
+        .group_by(models.User.id, models.User.name, models.User.email)
+        .having(func.count(models.Meal.id) > 0)
+        .order_by(func.sum(calories).desc(), models.User.id)
+        .limit(3)
+    )
+    return db.execute(stmt).mappings().all()
 
 
 app.include_router(router)

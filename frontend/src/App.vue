@@ -4,6 +4,7 @@ import TodayView from './components/TodayView.vue'
 import FoodsView from './components/FoodsView.vue'
 import IngredientsView from './components/IngredientsView.vue'
 import ProfileView from './components/ProfileView.vue'
+import LeaderboardView from './components/LeaderboardView.vue'
 import FoodDialog from './components/FoodDialog.vue'
 import IngredientDialog from './components/IngredientDialog.vue'
 import { api } from './api'
@@ -64,7 +65,8 @@ async function saveName() {
     <TodayView v-if="tab === 'today'" />
     <FoodsView v-else-if="tab === 'foods'" />
     <IngredientsView v-else-if="tab === 'ingredients'" />
-    <ProfileView v-else />
+    <LeaderboardView v-else-if="tab === 'leaderboard'" />
+    <ProfileView v-else-if="tab === 'profile'" />
   </main>
 
   <nav class="tabbar" aria-label="Main">
@@ -88,6 +90,10 @@ async function saveName() {
       <button type="button" :aria-current="tab === 'profile' ? 'page' : undefined" @click="tab = 'profile'">
         <span aria-hidden="true">👤</span>
         Profile
+      </button>
+      <button type="button" :aria-current="tab === 'leaderboard' ? 'page' : undefined" @click="tab = 'leaderboard'">
+        <span aria-hidden="true">🏆</span>
+        Top 3
       </button>
     </div>
   </nav>

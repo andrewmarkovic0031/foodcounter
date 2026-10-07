@@ -160,6 +160,42 @@ textarea {
   padding: 28px 16px;
 }
 
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+}
+.leaderboard-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.leaderboard-list li:last-child {
+  border-bottom: 0;
+}
+.leaderboard-rank {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--accent);
+  font-weight: 800;
+}
+.leaderboard-name {
+  flex: 1;
+}
+.leaderboard-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 /* ---------- buttons ---------- */
 
 .btn {

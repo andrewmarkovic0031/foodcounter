@@ -50,6 +50,7 @@ export const api = {
 
   // summary
   dailySummary: (day) => request(`/summary/daily?day=${day}`),
+  calorieLeaderboard: () => request('/leaderboard'),
 
   // profile
   currentUser: () => request('/auth/me'),
