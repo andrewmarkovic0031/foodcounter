@@ -4,6 +4,7 @@ import { api } from '../api'
 import { foodsChanged, loadFoods, loadIngredients, store } from '../foods'
 import { notify } from '../ui'
 import { trackVisualViewport } from '../visualViewport'
+import { formatEnergy } from '../nutrition'
 
 const el = ref(null)
 const nameInput = ref(null)
@@ -247,7 +248,7 @@ defineExpose({ open })
                   {{ result.data_type }}<template v-if="result.brand_owner"> · {{ result.brand_owner }}</template>
                 </span>
                 <span class="muted">
-                  {{ result.kilojoules_per_100g == null ? '–' : Math.round(result.kilojoules_per_100g) }} kJ
+                  {{ formatEnergy(result.kilojoules_per_100g) }}
                   · P {{ result.protein_per_100g ?? '–' }} g
                   · C {{ result.carbohydrates_per_100g ?? '–' }} g
                   · F {{ result.fat_per_100g ?? '–' }} g

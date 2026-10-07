@@ -169,7 +169,7 @@ class DailySummary(BaseModel):
 class LeaderboardEntry(BaseModel):
     user_id: int
     name: str
-    calories: float
+    kilojoules: float
 
 
 # ---------- Profile ----------

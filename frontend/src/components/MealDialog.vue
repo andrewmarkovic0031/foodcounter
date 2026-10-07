@@ -5,6 +5,7 @@ import { store } from '../foods'
 import { pad, parseLocal, toLocalInput } from '../dates'
 import { notify, openFoodDialog } from '../ui'
 import { trackVisualViewport } from '../visualViewport'
+import { formatEnergy } from '../nutrition'
 import SearchableSelect from './SearchableSelect.vue'
 
 const props = defineProps({ day: { type: String, required: true } })
@@ -27,7 +28,7 @@ const form = reactive({ meal_type: 'lunch', eaten_at: '', notes: '', rows: [] })
 const foodOptions = computed(() =>
   store.foods.map((food) => ({
     id: food.id,
-    label: `${food.name}${food.kilojoules != null ? ` · ${Math.round(food.kilojoules)} kJ` : ''}`
+    label: `${food.name}${food.kilojoules != null ? ` · ${formatEnergy(food.kilojoules)}` : ''}`
   }))
 )
 let uid = 0

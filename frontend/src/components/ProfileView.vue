@@ -4,6 +4,7 @@ import { api } from '../api'
 import { foodsChanged, loadFoods, loadIngredients } from '../foods'
 import { ACCENT_COLORS, applyAccentColor } from '../theme'
 import { notify } from '../ui'
+import { formatCalories } from '../nutrition'
 
 const fields = [
   ['kilojoules', 'Kilojoules', 'kJ'],
@@ -107,6 +108,9 @@ async function save() {
           />
           <span aria-hidden="true">{{ unit }}</span>
         </div>
+        <span v-if="key === 'kilojoules' && goals[key] !== ''" class="muted hint">
+          {{ formatCalories(Number(goals[key])) }}
+        </span>
       </div>
     </div>
 

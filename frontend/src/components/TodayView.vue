@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { api } from '../api'
 import { store } from '../foods'
 import { formatDay, formatTime, shiftDay, toDay } from '../dates'
+import { formatCalories } from '../nutrition'
 import { notify } from '../ui'
 import MealDialog from './MealDialog.vue'
 
@@ -105,6 +106,7 @@ const formatMetric = (value) => Math.round((value ?? 0) * 10) / 10
     <div class="kilojoules">
       <span class="kilojoules-num">{{ round(summary?.kilojoules) }}</span>
       <span class="muted">Kilojoules</span>
+      <span class="muted">{{ formatCalories(summary?.kilojoules) }}</span>
     </div>
     <dl class="macros">
       <div>
@@ -134,14 +136,18 @@ const formatMetric = (value) => Math.round((value ?? 0) * 10) / 10
         <div class="goal-progress-label">
           <span>{{ label }}</span>
           <span>
-            {{ formatMetric(summary?.[key]) }} / {{ formatMetric(goals[key]) }} {{ unit }}
+            <template v-if="key === 'kilojoules'">
+              {{ formatMetric(summary?.[key]) }} kJ ({{ formatCalories(summary?.[key]) }})
+              / {{ formatMetric(goals[key]) }} kJ ({{ formatCalories(goals[key]) }})
+            </template>
+            <template v-else>{{ formatMetric(summary?.[key]) }} / {{ formatMetric(goals[key]) }} {{ unit }}</template>
             · {{ goalProgressLabel(key) }}
           </span>
         </div>
         <progress
           :value="Math.min(progressPercent(key), 100)"
           max="100"
-          :aria-label="`${label}: ${formatMetric(summary?.[key])} of ${formatMetric(goals[key])} ${unit}${isOverGoal(key) ? ', over goal' : ''}`"
+          :aria-label="`${label}: ${formatMetric(summary?.[key])} of ${formatMetric(goals[key])} ${unit}${key === 'kilojoules' ? ` (${formatCalories(summary?.[key])} of ${formatCalories(goals[key])})` : ''}${isOverGoal(key) ? ', over goal' : ''}`"
         />
       </div>
     </div>
@@ -158,7 +164,7 @@ const formatMetric = (value) => Math.round((value ?? 0) * 10) / 10
             {{ cap(m.meal_type) }}
             <span class="muted">· {{ formatTime(m.eaten_at) }}</span>
           </h3>
-          <strong>{{ round(m.total_kilojoules) }} kilojoules</strong>
+          <strong>{{ round(m.total_kilojoules) }} kJ ({{ formatCalories(m.total_kilojoules) }})</strong>
         </div>
         <ul v-if="m.items.length" class="items">
           <li v-for="i in m.items" :key="i.id">{{ qty(i.quantity) }} × {{ i.food.name }}</li>

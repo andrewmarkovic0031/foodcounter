@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { store } from '../foods'
 import { openFoodDialog } from '../ui'
+import { formatEnergy } from '../nutrition'
 
 const query = ref('')
 
@@ -35,7 +36,7 @@ const grams = (v) => (v == null ? '–' : `${Math.round(v * 10) / 10}`)
           <span class="muted">
             <span v-if="f.owner_id !== store.userId">Shared · </span>
             {{ f.ingredients.length }} ingredients · {{ f.servings }} recipe servings ·
-            {{ f.kilojoules != null ? `${Math.round(f.kilojoules)} kilojoules` : 'No kilojoules' }}
+            {{ f.kilojoules != null ? formatEnergy(f.kilojoules) : 'No energy data' }}
             · P {{ grams(f.protein) }} · C {{ grams(f.carbohydrates) }} · F {{ grams(f.fat) }} · S {{ grams(f.sugar) }}
           </span>
         </button>

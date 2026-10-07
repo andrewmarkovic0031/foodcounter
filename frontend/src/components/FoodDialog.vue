@@ -4,6 +4,7 @@ import { api } from '../api'
 import { foodsChanged, loadFoods, store } from '../foods'
 import { notify } from '../ui'
 import { trackVisualViewport } from '../visualViewport'
+import { formatEnergy } from '../nutrition'
 import SearchableSelect from './SearchableSelect.vue'
 
 const el = ref(null)
@@ -192,7 +193,7 @@ defineExpose({ open })
 
         <p v-if="editing" class="muted hint">
           Per serving:
-          {{ editing.kilojoules != null ? `${Math.round(editing.kilojoules)} kJ` : 'No kilojoules' }}
+          {{ editing.kilojoules != null ? formatEnergy(editing.kilojoules) : 'No energy data' }}
           · P {{ grams(editing.protein ?? 0) }} g · C {{ grams(editing.carbohydrates ?? 0) }} g
           · F {{ grams(editing.fat ?? 0) }} g · S {{ grams(editing.sugar ?? 0) }} g
         </p>
