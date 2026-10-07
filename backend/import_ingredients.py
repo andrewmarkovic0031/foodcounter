@@ -1,17 +1,18 @@
-"""Import one ingredient per row from a CSV file into the running Meal Tracker API."""
+"""Import CSV ingredients directly into one user's Meal Tracker library."""
 
 import argparse
 import csv
-import json
 import math
-import os
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from typing import Mapping
+
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+import models
+from database import SessionLocal
 
 NUTRIENTS = (
     "kilojoules_per_100g",
@@ -21,9 +22,6 @@ NUTRIENTS = (
     "fat_per_100g",
 )
 CSV_COLUMNS = ("name", *NUTRIENTS)
-PAGE_SIZE = 200
-
-
 @dataclass
 class IngredientPayload:
     name: str
@@ -32,56 +30,6 @@ class IngredientPayload:
     carbohydrates_per_100g: float | None
     sugar_per_100g: float | None
     fat_per_100g: float | None
-
-
-def request_json(
-    url: str,
-    method: str = "GET",
-    body: dict[str, object] | None = None,
-    access_token: str | None = None,
-) -> tuple[int, Any]:
-    data = json.dumps(body).encode("utf-8") if body is not None else None
-    headers = {"Content-Type": "application/json"} if data is not None else {}
-    if access_token:
-        headers["CF-Access-Jwt-Assertion"] = access_token
-    request = Request(
-        url,
-        data=data,
-        method=method,
-        headers=headers,
-    )
-    try:
-        with urlopen(request, timeout=15) as response:
-            return response.status, json.loads(response.read()) if response.status != 204 else None
-    except HTTPError as error:
-        try:
-            detail = json.loads(error.read()).get("detail", str(error))
-        except (json.JSONDecodeError, AttributeError):
-            detail = str(error)
-        return error.code, detail
-    except URLError as error:
-        raise RuntimeError(f"Cannot reach the API at {url}: {error.reason}") from error
-
-
-def list_existing_names(
-    api_url: str, access_token: str, owner_email: str | None = None
-) -> set[str]:
-    names: set[str] = set()
-    offset = 0
-    while True:
-        params: dict[str, str | int] = {"limit": PAGE_SIZE, "offset": offset}
-        if owner_email:
-            params["owner_email"] = owner_email
-        query = urlencode(params)
-        status, ingredients = request_json(
-            f"{api_url}/ingredients?{query}", access_token=access_token
-        )
-        if status != 200 or ingredients is None:
-            raise RuntimeError(f"Could not list existing ingredients: {ingredients}")
-        names.update(item["name"] for item in ingredients)
-        if len(ingredients) < PAGE_SIZE:
-            return names
-        offset += PAGE_SIZE
 
 
 def parse_row(
@@ -118,14 +66,29 @@ def parse_row(
 
 def import_csv(
     csv_path: Path,
-    api_url: str,
-    access_token: str,
-    owner_email: str | None = None,
+    owner_email: str,
 ) -> tuple[int, int, int]:
-    existing_names = list_existing_names(api_url, access_token, owner_email)
     imported = skipped = failed = 0
 
-    with csv_path.open(encoding="utf-8-sig", newline="") as csv_file:
+    with SessionLocal() as db, csv_path.open(encoding="utf-8-sig", newline="") as csv_file:
+        users = db.scalars(
+            select(models.User).where(func.lower(models.User.email) == owner_email.lower())
+        ).all()
+        if not users:
+            raise ValueError(
+                f"No app user found with email {owner_email!r}. They must sign in once first."
+            )
+        if len(users) > 1:
+            raise ValueError(f"Multiple app users have email {owner_email!r}; cannot choose safely.")
+        owner = users[0]
+        existing_names = set(
+            db.scalars(
+                select(models.Ingredient.name).where(
+                    models.Ingredient.owner_id == owner.id
+                )
+            )
+        )
+
         reader = csv.DictReader(csv_file)
         headers = set(reader.fieldnames or ())
         missing = set(CSV_COLUMNS) - headers
@@ -146,21 +109,23 @@ def import_csv(
                 skipped += 1
                 continue
 
-            params = urlencode({"owner_email": owner_email}) if owner_email else ""
-            target = f"{api_url}/ingredients?{params}" if params else f"{api_url}/ingredients"
-            status, result = request_json(
-                target, "POST", asdict(payload), access_token
-            )
-            if status == 201:
+            db.add(models.Ingredient(owner_id=owner.id, **payload.__dict__))
+            try:
+                db.commit()
                 existing_names.add(name)
                 imported += 1
-                print(f"row {reader.line_num}: imported {name!r}")
-            elif status == 409:
+                print(f"row {reader.line_num}: imported {name!r} for {owner.email}")
+            except IntegrityError:
+                db.rollback()
                 existing_names.add(name)
                 skipped += 1
                 print(f"row {reader.line_num}: skipped existing ingredient {name!r}")
-            else:
-                print(f"row {reader.line_num}: could not import {name!r}: {result}", file=sys.stderr)
+            except SQLAlchemyError as error:
+                db.rollback()
+                print(
+                    f"row {reader.line_num}: could not import {name!r}: {error}",
+                    file=sys.stderr,
+                )
                 failed += 1
 
     return imported, skipped, failed
@@ -170,33 +135,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv_file", type=Path, help="CSV file with one ingredient per row")
     parser.add_argument(
-        "--api-url",
-        default="http://127.0.0.1:8000/api",
-        help="Meal Tracker API base URL (default: %(default)s)",
-    )
-    parser.add_argument(
         "--user-email",
-        help="Target an app user's ingredient library (requires importer-admin access)",
-    )
-    parser.add_argument(
-        "--access-token",
-        default=os.getenv("CF_ACCESS_JWT"),
-        help="Cloudflare Access JWT (prefer setting CF_ACCESS_JWT instead)",
+        required=True,
+        help="Email address of the app user who will own the imported ingredients",
     )
     args = parser.parse_args()
 
     try:
-        if not args.access_token:
-            raise ValueError(
-                "Set CF_ACCESS_JWT or pass --access-token with a valid Cloudflare Access JWT."
-            )
         imported, skipped, failed = import_csv(
             args.csv_file,
-            args.api_url.rstrip("/"),
-            args.access_token,
             args.user_email,
         )
-    except (OSError, ValueError, RuntimeError) as error:
+    except (OSError, ValueError, SQLAlchemyError) as error:
         print(error, file=sys.stderr)
         return 1
 

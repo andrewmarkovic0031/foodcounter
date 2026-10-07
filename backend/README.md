@@ -1,33 +1,17 @@
 # Import ingredients from CSV
 
-Start the Meal Tracker backend, set `CF_ACCESS_JWT` to a valid Cloudflare Access
-JWT for the importing account, then run the importer from the `backend` folder:
-
-```powershell
-$env:CF_ACCESS_JWT = "<cloudflare-access-jwt>"
-.\.venv\Scripts\python.exe .\import_ingredients.py .\ingredients.csv
-```
-
-By default, ingredients are added to the authenticated account's library. To
-import into another account, configure a comma-separated list of trusted
-importer-admin email addresses on the backend:
-
-```text
-INGREDIENT_IMPORT_ADMIN_EMAILS=admin@example.com
-```
-
-Authenticate the script as one of those admins, then specify the target user's
-email. The target must already have signed into the app at least once:
+Run the importer on the Raspberry Pi (or another machine with access to the
+backend database) from the `backend` folder, specifying the account email:
 
 ```powershell
 .\.venv\Scripts\python.exe .\import_ingredients.py .\ingredients.csv --user-email person@example.com
 ```
 
-The target email only selects an account; it is not proof of identity.
-The backend checks the importer's verified Cloudflare Access identity against
-`INGREDIENT_IMPORT_ADMIN_EMAILS` before listing or creating items in another
-user's library. Keep the JWT in the environment rather than saving it in the
-command history.
+The script writes directly to the configured database (`DATABASE_URL`, or
+`sqlite:///./meals.db` by default), so the target user does not need to be
+authenticated in the browser while importing. The account must have signed in
+to the app at least once so it has a user record. Make sure `DATABASE_URL`
+points to the same database used by the running app.
 
 The CSV must have one ingredient per row and these headers:
 
@@ -42,12 +26,6 @@ unknown. Names already in the ingredient list are skipped; invalid rows are
 reported while the importer continues with later rows. The final summary reports
 the imported, skipped, and failed row counts, and the script exits unsuccessfully
 if any rows failed.
-
-If the API is not at its default address, pass its base URL:
-
-```powershell
-.\.venv\Scripts\python.exe .\import_ingredients.py .\ingredients.csv --api-url http://localhost:8000/api
-```
 
 # Search USDA FoodData Central
 
