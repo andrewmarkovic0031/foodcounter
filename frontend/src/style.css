@@ -551,6 +551,26 @@ textarea {
 .profile-form .grid2 {
   width: 100%;
 }
+.library-preferences {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.library-preference {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+.library-preference input[type='checkbox'] {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+}
 .usda-search {
   display: flex;
   align-items: flex-end;

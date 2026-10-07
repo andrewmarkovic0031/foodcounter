@@ -8,9 +8,11 @@ from database import Base
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
+    __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_ingredient_owner_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
     kilojoules_per_100g: Mapped[float | None]
     protein_per_100g: Mapped[float | None]
     carbohydrates_per_100g: Mapped[float | None]
@@ -22,9 +24,11 @@ class Ingredient(Base):
 
 class Food(Base):
     __tablename__ = "foods"
+    __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_food_owner_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
     servings: Mapped[float] = mapped_column(default=1.0)
     ingredients: Mapped[list["FoodIngredient"]] = relationship(
         back_populates="food", cascade="all, delete-orphan"
@@ -63,6 +67,7 @@ class Meal(Base):
     __tablename__ = "meals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     eaten_at: Mapped[datetime] = mapped_column(default=datetime.now, index=True)
     meal_type: Mapped[str] = mapped_column(String(20))
     notes: Mapped[str | None]
@@ -86,9 +91,8 @@ class MealItem(Base):
 
 class ProfileGoals(Base):
     __tablename__ = "profile_goals"
-    __table_args__ = (CheckConstraint("id = 1", name="ck_profile_goals_singleton"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     kilojoules: Mapped[float | None] = mapped_column(Float, nullable=True)
     protein: Mapped[float | None] = mapped_column(Float, nullable=True)
     carbohydrates: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -98,9 +102,8 @@ class ProfileGoals(Base):
 
 class ProfileTheme(Base):
     __tablename__ = "profile_theme"
-    __table_args__ = (CheckConstraint("id = 1", name="ck_profile_theme_singleton"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     accent_color: Mapped[str] = mapped_column(String(20), default="violet")
 
 
@@ -111,4 +114,8 @@ class User(Base):
     subject: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(320))
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    share_foods: Mapped[bool] = mapped_column(default=False)
+    share_ingredients: Mapped[bool] = mapped_column(default=False)
+    see_shared_foods: Mapped[bool] = mapped_column(default=False)
+    see_shared_ingredients: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))

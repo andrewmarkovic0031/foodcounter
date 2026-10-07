@@ -63,3 +63,22 @@ a valid Access token are rejected. A verified user's first API request creates
 a local user record keyed by the token subject; the stored email is refreshed
 from the verified token if it changes. The authenticated identity is available
 from `GET /api/auth/me`.
+
+# Personal and shared libraries
+
+Foods and ingredients belong to the user who created them. By default, library
+items are private and only the user's own items are shown. In **Profile →
+Library sharing**, users can independently choose to share their foods and
+ingredients, and whether to show foods and ingredients shared by others. Public
+foods include their recipe ingredient details. Only an item's owner can edit or
+delete it.
+
+On startup, existing meals, foods, and ingredients are assigned to the oldest
+registered user. If there are no registered users yet, the first user to sign
+in claims the existing data. The SQLite startup migration removes the old
+global food and ingredient name uniqueness constraints, so different users can
+create items with the same name.
+
+Daily nutrition goals and accent colour are also stored per user. Existing
+shared profile goals and theme are assigned to the oldest registered user (or
+claimed by the first user to sign in if no account exists during migration).

@@ -33,6 +33,7 @@ const grams = (v) => (v == null ? '–' : `${Math.round(v * 10) / 10}`)
         <button type="button" class="card food" @click="openFoodDialog(f)">
           <span class="food-name"><span class="sr-only">Edit </span>{{ f.name }}</span>
           <span class="muted">
+            <span v-if="f.owner_id !== store.userId">Shared · </span>
             {{ f.ingredients.length }} ingredients · {{ f.servings }} recipe servings ·
             {{ f.kilojoules != null ? `${Math.round(f.kilojoules)} kilojoules` : 'No kilojoules' }}
             · P {{ grams(f.protein) }} · C {{ grams(f.carbohydrates) }} · F {{ grams(f.fat) }} · S {{ grams(f.sugar) }}

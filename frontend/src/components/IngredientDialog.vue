@@ -1,7 +1,7 @@
 <script setup>
-import { nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { api } from '../api'
-import { foodsChanged, loadFoods, loadIngredients } from '../foods'
+import { foodsChanged, loadFoods, loadIngredients, store } from '../foods'
 import { notify } from '../ui'
 import { trackVisualViewport } from '../visualViewport'
 
@@ -10,6 +10,9 @@ const nameInput = ref(null)
 const editing = ref(null)
 const error = ref('')
 const busy = ref(false)
+const readOnly = computed(
+  () => editing.value !== null && editing.value.owner_id !== store.userId
+)
 const mode = ref('manual')
 const searchQuery = ref('')
 const searchResults = ref([])
@@ -107,6 +110,7 @@ async function refreshCatalogs() {
 }
 
 async function save() {
+  if (readOnly.value) return
   error.value = ''
   const payload = { name: form.name.trim() }
   for (const [field] of nutrients) payload[field] = toNum(form[field])
@@ -126,6 +130,7 @@ async function save() {
 }
 
 async function remove() {
+  if (readOnly.value) return
   busy.value = true
   try {
     await api.deleteIngredient(editing.value.id)
@@ -151,6 +156,11 @@ defineExpose({ open })
       </header>
 
       <div class="sheet-scroll">
+        <p v-if="readOnly" class="muted">
+          This ingredient is shared by another user and is read-only.
+        </p>
+        <fieldset :disabled="readOnly">
+          <legend class="sr-only">Ingredient details</legend>
         <div v-if="!editing" class="seg-options" aria-label="Ingredient source">
           <button
             type="button"
@@ -252,15 +262,17 @@ defineExpose({ open })
         </template>
 
         <p v-if="error" class="error" role="alert">{{ error }}</p>
+        </fieldset>
       </div>
 
       <footer class="sheet-foot">
-        <button v-if="editing" type="button" class="btn danger" :disabled="busy" @click="remove">
+        <button v-if="editing && !readOnly" type="button" class="btn danger" :disabled="busy" @click="remove">
           Delete
         </button>
-        <button v-if="mode === 'manual'" type="submit" class="btn grow" :disabled="busy">
+        <button v-if="mode === 'manual' && !readOnly" type="submit" class="btn grow" :disabled="busy">
           {{ busy ? 'Saving…' : 'Save' }}
         </button>
+        <p v-if="readOnly" class="muted">Only the owner can edit this ingredient.</p>
       </footer>
     </form>
   </dialog>

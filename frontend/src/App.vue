@@ -7,7 +7,7 @@ import ProfileView from './components/ProfileView.vue'
 import FoodDialog from './components/FoodDialog.vue'
 import IngredientDialog from './components/IngredientDialog.vue'
 import { api } from './api'
-import { loadFoods, loadIngredients } from './foods'
+import { loadFoods, loadIngredients, store } from './foods'
 import { loadAccentColor } from './theme'
 import {
   notify,
@@ -24,17 +24,17 @@ const name = ref('')
 const nameSaving = ref(false)
 const nameError = ref('')
 
-onMounted(() => {
+onMounted(async () => {
   registerFoodDialog(foodDialogEl.value)
   registerIngredientDialog(ingredientDialogEl.value)
-  api.currentUser()
-    .then((user) => {
-      if (!user.name) nameDialogEl.value?.showModal()
-    })
-    .catch((e) => notify(e.message, 'error'))
-  Promise.all([loadFoods(), loadIngredients(), loadAccentColor()]).catch((e) =>
+  try {
+    const user = await api.currentUser()
+    store.userId = user.id
+    if (!user.name) nameDialogEl.value?.showModal()
+    await Promise.all([loadFoods(), loadIngredients(), loadAccentColor()])
+  } catch (e) {
     notify(e.message, 'error')
-  )
+  }
 })
 
 async function saveName() {

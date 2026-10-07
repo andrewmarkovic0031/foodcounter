@@ -47,6 +47,7 @@ const amount = (value) => (value == null ? '–' : `${Math.round(value * 10) / 1
         >
           <span class="food-name"><span class="sr-only">Edit </span>{{ ingredient.name }}</span>
           <span class="muted">
+            <span v-if="ingredient.owner_id !== store.userId">Shared · </span>
             {{ amount(ingredient.kilojoules_per_100g) }} kJ
             · P {{ amount(ingredient.protein_per_100g) }}
             · C {{ amount(ingredient.carbohydrates_per_100g) }}

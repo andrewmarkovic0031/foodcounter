@@ -28,6 +28,7 @@ class IngredientUpdate(BaseModel):
 class IngredientRead(IngredientCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    owner_id: int
 
 
 class USDAFoodSearchResult(BaseModel):
@@ -70,6 +71,7 @@ class FoodRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    owner_id: int
     name: str
     servings: float
     ingredients: list[FoodIngredientRead]
@@ -194,6 +196,10 @@ class CurrentUserRead(BaseModel):
     id: int
     email: str
     name: str | None
+    share_foods: bool
+    share_ingredients: bool
+    see_shared_foods: bool
+    see_shared_ingredients: bool
 
 
 class UserNameUpdate(BaseModel):
@@ -206,3 +212,10 @@ class UserNameUpdate(BaseModel):
         if not value:
             raise ValueError("Name cannot be blank")
         return value
+
+
+class UserLibraryPreferences(BaseModel):
+    share_foods: bool
+    share_ingredients: bool
+    see_shared_foods: bool
+    see_shared_ingredients: bool

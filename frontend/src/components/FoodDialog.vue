@@ -18,6 +18,9 @@ let uid = 0
 const ingredientOptions = computed(() =>
   store.ingredients.map((ingredient) => ({ id: ingredient.id, name: ingredient.name }))
 )
+const readOnly = computed(
+  () => editing.value !== null && editing.value.owner_id !== store.userId
+)
 const newRow = (ingredient_id = '', grams = 100) => ({
   key: ++uid,
   ingredient_id,
@@ -47,6 +50,7 @@ function onClose() {
 }
 
 async function save() {
+  if (readOnly.value) return
   error.value = ''
   const ingredients = form.ingredients
     .filter((row) => row.ingredient_id !== '')
@@ -87,6 +91,7 @@ async function save() {
 }
 
 async function remove() {
+  if (readOnly.value) return
   busy.value = true
   try {
     await api.deleteFood(editing.value.id)
@@ -113,6 +118,11 @@ defineExpose({ open })
       </header>
 
       <div class="sheet-scroll">
+        <p v-if="readOnly" class="muted">
+          This food is shared by another user and is read-only.
+        </p>
+        <fieldset :disabled="readOnly">
+          <legend class="sr-only">Food details</legend>
         <div class="field">
           <label for="food-name">Food name</label>
           <input id="food-name" ref="nameInput" v-model="form.name" type="text" maxlength="100" required />
@@ -188,13 +198,15 @@ defineExpose({ open })
         </p>
 
         <p v-if="error" class="error" role="alert">{{ error }}</p>
+        </fieldset>
       </div>
 
       <footer class="sheet-foot">
-        <button v-if="editing" type="button" class="btn danger" :disabled="busy" @click="remove">Delete</button>
-        <button type="submit" class="btn grow" :disabled="busy">
+        <button v-if="editing && !readOnly" type="button" class="btn danger" :disabled="busy" @click="remove">Delete</button>
+        <button v-if="!readOnly" type="submit" class="btn grow" :disabled="busy">
           {{ busy ? 'Saving…' : 'Save' }}
         </button>
+        <p v-else class="muted">Shared foods can be used in your meals, but only their owner can edit them.</p>
       </footer>
     </form>
   </dialog>

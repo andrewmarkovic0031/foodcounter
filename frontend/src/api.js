@@ -54,6 +54,8 @@ export const api = {
   // profile
   currentUser: () => request('/auth/me'),
   updateCurrentUser: (body) => request('/auth/me', withBody('PUT', body)),
+  updateLibraryPreferences: (body) =>
+    request('/auth/library-preferences', withBody('PUT', body)),
   profileGoals: () => request('/profile/goals'),
   updateProfileGoals: (body) => request('/profile/goals', withBody('PUT', body)),
   profileTheme: () => request('/profile/theme'),

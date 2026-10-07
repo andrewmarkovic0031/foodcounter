@@ -5,7 +5,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request, status
 from jwt import PyJWKClient
 from jwt.exceptions import InvalidTokenError, PyJWKClientConnectionError, PyJWKClientError
-from sqlalchemy import select
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -85,12 +85,14 @@ def get_current_user(
     request: Request, db: Session = Depends(get_db)
 ) -> models.User:
     subject, email = _get_identity(request)
+    created_user = False
     user = db.scalar(select(models.User).where(models.User.subject == subject))
     if user is None:
         user = models.User(subject=subject, email=email)
         db.add(user)
         try:
             db.commit()
+            created_user = True
         except IntegrityError:
             db.rollback()
             user = db.scalar(select(models.User).where(models.User.subject == subject))
@@ -99,5 +101,46 @@ def get_current_user(
     elif user.email != email:
         user.email = email
         db.commit()
+
+    if created_user:
+        for table, columns in (
+            ("profile_goals", "kilojoules, protein, carbohydrates, fat, sugar"),
+            ("profile_theme", "accent_color"),
+        ):
+            legacy_table = f"legacy_{table}"
+            legacy_exists = db.scalar(
+                text("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :name"),
+                {"name": legacy_table},
+            )
+            if legacy_exists:
+                db.execute(
+                    text(
+                        f"INSERT OR IGNORE INTO {table} (user_id, {columns}) "
+                        f"SELECT :user_id, {columns} FROM {legacy_table} LIMIT 1"
+                    ),
+                    {"user_id": user.id},
+                )
+                db.execute(text(f"DROP TABLE {legacy_table}"))
+        db.commit()
+
+    first_user_id = db.scalar(select(models.User.id).order_by(models.User.id).limit(1))
+    if user.id == first_user_id:
+        ingredients_updated = db.execute(
+            update(models.Ingredient)
+            .where(models.Ingredient.owner_id.is_(None))
+            .values(owner_id=user.id)
+        ).rowcount
+        foods_updated = db.execute(
+            update(models.Food)
+            .where(models.Food.owner_id.is_(None))
+            .values(owner_id=user.id)
+        ).rowcount
+        meals_updated = db.execute(
+            update(models.Meal)
+            .where(models.Meal.owner_id.is_(None))
+            .values(owner_id=user.id)
+        ).rowcount
+        if ingredients_updated or foods_updated or meals_updated:
+            db.commit()
 
     return user

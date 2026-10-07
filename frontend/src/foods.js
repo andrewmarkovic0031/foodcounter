@@ -5,6 +5,7 @@ import { api } from './api'
 export const store = reactive({
   foods: [],
   ingredients: [],
+  userId: null,
   loaded: false,
   ingredientsLoaded: false,
   revision: 0
