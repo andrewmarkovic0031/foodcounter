@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import CheckConstraint, ForeignKey, Float, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -102,3 +102,12 @@ class ProfileTheme(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     accent_color: Mapped[str] = mapped_column(String(20), default="violet")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))

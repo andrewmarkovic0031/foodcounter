@@ -42,3 +42,24 @@ choose **Add** on a result. The app imports its available energy and macro value
 as per-100-g ingredient values. USDA FoodData Central is the source of the
 imported data; its data is public domain (CC0). See the
 [USDA FoodData Central API Guide](https://fdc.nal.usda.gov/api-guide/).
+
+# Cloudflare Access identity
+
+Protect the app's hostname with a Cloudflare Access self-hosted application and
+an Access policy that allows the email addresses permitted to use the app. Copy
+the application's **AUD tag** from its overview, then configure these variables
+on the backend process (for example, in the Raspberry Pi service environment):
+
+```text
+CLOUDFLARE_ACCESS_TEAM_DOMAIN=https://<team-name>.cloudflareaccess.com
+CLOUDFLARE_ACCESS_AUD=<application-aud-tag>
+```
+
+The backend verifies the `CF-Access-Jwt-Assertion` signature against Cloudflare
+Access's published keys and checks its issuer, audience, and expiry. Keep the
+backend reachable only through the Cloudflare Tunnel; do not trust a plain
+email header or expose the API directly to the internet. API requests without
+a valid Access token are rejected. A verified user's first API request creates
+a local user record keyed by the token subject; the stored email is refreshed
+from the verified token if it changes. The authenticated identity is available
+from `GET /api/auth/me`.

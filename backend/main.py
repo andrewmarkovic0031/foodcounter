@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 import models
 import schemas
+from auth import get_current_user
 from database import Base, engine, get_db
 
 
@@ -26,7 +27,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Meal Tracker", lifespan=lifespan)
-router = APIRouter(prefix="/api")  # the Vue app is served at /, the API lives under /api
+router = APIRouter(
+    prefix="/api",
+    dependencies=[Depends(get_current_user)],
+)  # the Vue app is served at /, the API lives under /api
 
 USDA_API_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 USDA_NUTRIENTS = {
@@ -208,6 +212,13 @@ def build_items(db: Session, items: list[schemas.MealItemCreate]) -> list[models
 
 
 # ---------- ingredients ----------
+@router.get("/auth/me", response_model=schemas.CurrentUserRead)
+def read_current_user(
+    current_user: models.User = Depends(get_current_user),
+):
+    return current_user
+
+
 @router.get(
     "/ingredients/usda/search", response_model=list[schemas.USDAFoodSearchResult]
 )
