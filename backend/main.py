@@ -10,7 +10,7 @@ from loguru import logger
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, status
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -23,6 +23,12 @@ from database import Base, engine, get_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)  # swap for Alembic once the schema settles
+    with engine.begin() as connection:
+        user_columns = {
+            column["name"] for column in inspect(connection).get_columns("users")
+        }
+        if "name" not in user_columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(100)"))
     yield
 
 
@@ -216,6 +222,18 @@ def build_items(db: Session, items: list[schemas.MealItemCreate]) -> list[models
 def read_current_user(
     current_user: models.User = Depends(get_current_user),
 ):
+    return current_user
+
+
+@router.put("/auth/me", response_model=schemas.CurrentUserRead)
+def update_current_user(
+    payload: schemas.UserNameUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.name = payload.name
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

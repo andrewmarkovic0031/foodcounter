@@ -52,6 +52,8 @@ export const api = {
   dailySummary: (day) => request(`/summary/daily?day=${day}`),
 
   // profile
+  currentUser: () => request('/auth/me'),
+  updateCurrentUser: (body) => request('/auth/me', withBody('PUT', body)),
   profileGoals: () => request('/profile/goals'),
   updateProfileGoals: (body) => request('/profile/goals', withBody('PUT', body)),
   profileTheme: () => request('/profile/theme'),

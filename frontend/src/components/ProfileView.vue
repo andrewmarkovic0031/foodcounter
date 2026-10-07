@@ -23,12 +23,18 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const accentColor = ref('violet')
+const currentUser = ref(null)
 
 onMounted(async () => {
   try {
-    const [saved, theme] = await Promise.all([api.profileGoals(), api.profileTheme()])
+    const [saved, theme, user] = await Promise.all([
+      api.profileGoals(),
+      api.profileTheme(),
+      api.currentUser()
+    ])
     for (const [key] of fields) goals[key] = saved[key] ?? ''
     accentColor.value = theme.accent_color
+    currentUser.value = user
   } catch (e) {
     error.value = e.message
   } finally {
@@ -63,6 +69,9 @@ async function save() {
   <header class="page-head">
     <h1>Profile</h1>
     <p class="muted">Set daily targets to track your progress on Today.</p>
+    <p v-if="currentUser?.name" class="muted">
+      Signed in as <strong>{{ currentUser.name }}</strong> · {{ currentUser.email }}
+    </p>
   </header>
 
   <form class="card profile-form" @submit.prevent="save" :aria-busy="loading || saving">
