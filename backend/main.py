@@ -330,6 +330,39 @@ def ingredient_visibility_clause(current_user: models.User):
     )
 
 
+def resolve_ingredient_owner(
+    owner_email: str | None, current_user: models.User, db: Session
+) -> models.User:
+    if owner_email is None:
+        return current_user
+
+    admins = {
+        email.strip().lower()
+        for email in os.getenv("INGREDIENT_IMPORT_ADMIN_EMAILS", "").split(",")
+        if email.strip()
+    }
+    if current_user.email.lower() not in admins:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only configured ingredient import admins can select an owner.",
+        )
+
+    email = owner_email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A valid owner email is required.")
+    users = db.scalars(
+        select(models.User).where(models.User.email == email)
+    ).all()
+    if not users:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No app user has that email address.")
+    if len(users) > 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "More than one app account uses that email; owner selection is ambiguous.",
+        )
+    return users[0]
+
+
 def get_food_or_404(
     db: Session, food_id: int, current_user: models.User | None = None, *, owned: bool = False
 ) -> models.Food:
@@ -490,10 +523,12 @@ def search_ingredients_usda(
 )
 def create_ingredient(
     payload: schemas.IngredientCreate,
+    owner_email: str | None = Query(default=None, max_length=320),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ingredient = models.Ingredient(owner_id=current_user.id, **payload.model_dump())
+    owner = resolve_ingredient_owner(owner_email, current_user, db)
+    ingredient = models.Ingredient(owner_id=owner.id, **payload.model_dump())
     db.add(ingredient)
     try:
         db.commit()
@@ -509,14 +544,21 @@ def create_ingredient(
 @router.get("/ingredients", response_model=list[schemas.IngredientRead])
 def list_ingredients(
     q: str | None = Query(default=None, description="Substring match on name"),
+    owner_email: str | None = Query(default=None, max_length=320),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    owner = resolve_ingredient_owner(owner_email, current_user, db)
+    visibility = (
+        models.Ingredient.owner_id == owner.id
+        if owner_email is not None
+        else ingredient_visibility_clause(current_user)
+    )
     stmt = (
         select(models.Ingredient)
-        .where(ingredient_visibility_clause(current_user))
+        .where(visibility)
         .order_by(models.Ingredient.name)
         .limit(limit)
         .offset(offset)

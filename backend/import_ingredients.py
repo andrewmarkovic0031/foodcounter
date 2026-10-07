@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -34,14 +35,20 @@ class IngredientPayload:
 
 
 def request_json(
-    url: str, method: str = "GET", body: dict[str, object] | None = None
+    url: str,
+    method: str = "GET",
+    body: dict[str, object] | None = None,
+    access_token: str | None = None,
 ) -> tuple[int, Any]:
     data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {"Content-Type": "application/json"} if data is not None else {}
+    if access_token:
+        headers["CF-Access-Jwt-Assertion"] = access_token
     request = Request(
         url,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json"} if data is not None else {},
+        headers=headers,
     )
     try:
         with urlopen(request, timeout=15) as response:
@@ -56,12 +63,19 @@ def request_json(
         raise RuntimeError(f"Cannot reach the API at {url}: {error.reason}") from error
 
 
-def list_existing_names(api_url: str) -> set[str]:
+def list_existing_names(
+    api_url: str, access_token: str, owner_email: str | None = None
+) -> set[str]:
     names: set[str] = set()
     offset = 0
     while True:
-        query = urlencode({"limit": PAGE_SIZE, "offset": offset})
-        status, ingredients = request_json(f"{api_url}/ingredients?{query}")
+        params: dict[str, str | int] = {"limit": PAGE_SIZE, "offset": offset}
+        if owner_email:
+            params["owner_email"] = owner_email
+        query = urlencode(params)
+        status, ingredients = request_json(
+            f"{api_url}/ingredients?{query}", access_token=access_token
+        )
         if status != 200 or ingredients is None:
             raise RuntimeError(f"Could not list existing ingredients: {ingredients}")
         names.update(item["name"] for item in ingredients)
@@ -102,8 +116,13 @@ def parse_row(
     )
 
 
-def import_csv(csv_path: Path, api_url: str) -> tuple[int, int, int]:
-    existing_names = list_existing_names(api_url)
+def import_csv(
+    csv_path: Path,
+    api_url: str,
+    access_token: str,
+    owner_email: str | None = None,
+) -> tuple[int, int, int]:
+    existing_names = list_existing_names(api_url, access_token, owner_email)
     imported = skipped = failed = 0
 
     with csv_path.open(encoding="utf-8-sig", newline="") as csv_file:
@@ -127,8 +146,10 @@ def import_csv(csv_path: Path, api_url: str) -> tuple[int, int, int]:
                 skipped += 1
                 continue
 
+            params = urlencode({"owner_email": owner_email}) if owner_email else ""
+            target = f"{api_url}/ingredients?{params}" if params else f"{api_url}/ingredients"
             status, result = request_json(
-                f"{api_url}/ingredients", "POST", asdict(payload)
+                target, "POST", asdict(payload), access_token
             )
             if status == 201:
                 existing_names.add(name)
@@ -153,10 +174,28 @@ def main() -> int:
         default="http://127.0.0.1:8000/api",
         help="Meal Tracker API base URL (default: %(default)s)",
     )
+    parser.add_argument(
+        "--user-email",
+        help="Target an app user's ingredient library (requires importer-admin access)",
+    )
+    parser.add_argument(
+        "--access-token",
+        default=os.getenv("CF_ACCESS_JWT"),
+        help="Cloudflare Access JWT (prefer setting CF_ACCESS_JWT instead)",
+    )
     args = parser.parse_args()
 
     try:
-        imported, skipped, failed = import_csv(args.csv_file, args.api_url.rstrip("/"))
+        if not args.access_token:
+            raise ValueError(
+                "Set CF_ACCESS_JWT or pass --access-token with a valid Cloudflare Access JWT."
+            )
+        imported, skipped, failed = import_csv(
+            args.csv_file,
+            args.api_url.rstrip("/"),
+            args.access_token,
+            args.user_email,
+        )
     except (OSError, ValueError, RuntimeError) as error:
         print(error, file=sys.stderr)
         return 1
