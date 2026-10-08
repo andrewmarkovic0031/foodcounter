@@ -133,3 +133,5 @@ create items with the same name.
 Daily nutrition goals and accent colour are also stored per user. Existing
 shared profile goals and theme are assigned to the oldest registered user (or
 claimed by the first user to sign in if no account exists during migration).
+In **Profile → Today screen**, users can turn off the option to show yesterday's
+meals for repeating; it is enabled by default.

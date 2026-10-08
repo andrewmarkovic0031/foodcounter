@@ -134,4 +134,5 @@ class User(Base):
     share_ingredients: Mapped[bool] = mapped_column(default=False)
     see_shared_foods: Mapped[bool] = mapped_column(default=False)
     see_shared_ingredients: Mapped[bool] = mapped_column(default=False)
+    show_yesterday_meals: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))

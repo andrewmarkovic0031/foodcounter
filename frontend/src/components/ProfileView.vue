@@ -30,7 +30,8 @@ const libraryPreferences = reactive({
   share_foods: false,
   share_ingredients: false,
   see_shared_foods: false,
-  see_shared_ingredients: false
+  see_shared_ingredients: false,
+  show_yesterday_meals: true
 })
 
 onMounted(async () => {
@@ -147,6 +148,15 @@ async function save() {
         Changes take effect when you save your profile. Shared foods include their recipe ingredients.
         Sharing is limited to people who can already access this app.
       </p>
+    </fieldset>
+
+    <fieldset v-if="!loading" class="library-preferences">
+      <legend>Today screen</legend>
+      <label class="library-preference">
+        <input v-model="libraryPreferences.show_yesterday_meals" type="checkbox" />
+        <span>Show yesterday’s meals to repeat on Today</span>
+      </label>
+      <p class="muted hint">Changes take effect when you save your profile.</p>
     </fieldset>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>

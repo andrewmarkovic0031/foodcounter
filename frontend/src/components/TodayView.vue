@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { store } from '../foods'
 import { formatDay, formatTime, shiftDay, toDay } from '../dates'
@@ -9,9 +9,12 @@ import MealDialog from './MealDialog.vue'
 
 const day = ref(toDay())
 const meals = ref([])
+const yesterdayMeals = ref([])
+const showYesterdayMeals = ref(true)
 const summary = ref(null)
 const goals = ref(null)
 const loading = ref(false)
+const repeatingMealId = ref(null)
 const mealDialog = ref(null)
 let token = 0 // ignore responses from a day the user has already navigated away from
 
@@ -19,9 +22,17 @@ async function load() {
   const mine = ++token
   loading.value = true
   try {
-    const [list, totals] = await Promise.all([api.listMeals(day.value), api.dailySummary(day.value)])
+    const selectedDay = day.value
+    const [list, totals, previousDayMeals] = await Promise.all([
+      api.listMeals(selectedDay),
+      api.dailySummary(selectedDay),
+      selectedDay === toDay() && showYesterdayMeals.value
+        ? api.listMeals(shiftDay(selectedDay, -1))
+        : []
+    ])
     if (mine !== token) return
     meals.value = [...list].sort((a, b) => a.eaten_at.localeCompare(b.eaten_at))
+    yesterdayMeals.value = previousDayMeals
     summary.value = totals
   } catch (e) {
     if (mine === token) notify(e.message, 'error')
@@ -30,8 +41,18 @@ async function load() {
   }
 }
 
-watch(day, load, { immediate: true })
+watch(day, load)
 watch(() => store.revision, load) // a food was edited/deleted: refresh embedded food data
+
+onMounted(async () => {
+  try {
+    const user = await api.currentUser()
+    showYesterdayMeals.value = user.show_yesterday_meals
+  } catch (e) {
+    notify(e.message, 'error')
+  }
+  await load()
+})
 
 api.profileGoals()
   .then((value) => {
@@ -57,6 +78,26 @@ function onSaved(savedDay) {
   // Jump to the day the meal was saved on so it never "disappears" from view.
   if (savedDay && savedDay !== day.value) day.value = savedDay
   else load()
+}
+
+async function repeatMeal(meal) {
+  if (repeatingMealId.value !== null) return
+  repeatingMealId.value = meal.id
+  try {
+    await api.createMeal({
+      meal_type: meal.meal_type,
+      items: meal.items.map((item) => ({
+        food_id: item.food.id,
+        quantity: item.quantity
+      }))
+    })
+    await load()
+    notify('Meal repeated for today')
+  } catch (e) {
+    notify(e.message, 'error')
+  } finally {
+    repeatingMealId.value = null
+  }
 }
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -181,7 +222,35 @@ const formatMetric = (value) => Math.round((value ?? 0) * 10) / 10
       </li>
     </ul>
   </section>
-
+<section
+    v-if="isToday && showYesterdayMeals && yesterdayMeals.length"
+    aria-labelledby="repeat-meals-heading"
+  >
+    <h2 id="repeat-meals-heading">Yesterday’s meals</h2>
+    <p class="muted">Repeat a meal to add it to today.</p>
+    <ul class="meal-list">
+      <li v-for="m in yesterdayMeals" :key="m.id" class="card meal">
+        <div class="meal-head">
+          <h3 class="meal-title">
+            {{ cap(m.meal_type) }}
+            <span class="muted">· {{ formatTime(m.eaten_at) }}</span>
+          </h3>
+          <button
+            type="button"
+            class="btn secondary"
+            :disabled="repeatingMealId !== null"
+            :aria-label="`Repeat ${m.meal_type} from yesterday`"
+            @click="repeatMeal(m)"
+          >
+            {{ repeatingMealId === m.id ? 'Adding…' : 'Repeat' }}
+          </button>
+        </div>
+        <ul v-if="m.items.length" class="items">
+          <li v-for="i in m.items" :key="i.id">{{ qty(i.quantity) }} × {{ i.food.name }}</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
   <button type="button" class="btn fab" @click="mealDialog.open()">+ Log meal</button>
 
   <MealDialog ref="mealDialog" :day="day" @saved="onSaved" />

@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
             ("share_ingredients", "BOOLEAN NOT NULL DEFAULT 0"),
             ("see_shared_foods", "BOOLEAN NOT NULL DEFAULT 0"),
             ("see_shared_ingredients", "BOOLEAN NOT NULL DEFAULT 0"),
+            ("show_yesterday_meals", "BOOLEAN NOT NULL DEFAULT 1"),
         ):
             if column not in user_columns:
                 connection.execute(text(f"ALTER TABLE users ADD COLUMN {column} {sql_type}"))

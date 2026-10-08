@@ -220,6 +220,7 @@ class CurrentUserRead(BaseModel):
     share_ingredients: bool
     see_shared_foods: bool
     see_shared_ingredients: bool
+    show_yesterday_meals: bool
 
 
 class UserNameUpdate(BaseModel):
@@ -239,3 +240,4 @@ class UserLibraryPreferences(BaseModel):
     share_ingredients: bool
     see_shared_foods: bool
     see_shared_ingredients: bool
+    show_yesterday_meals: bool = True
