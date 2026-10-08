@@ -18,6 +18,8 @@ const mode = ref('manual')
 const searchQuery = ref('')
 const searchResults = ref([])
 const catalogResults = ref([])
+const catalogNextOffset = ref(null)
+const catalogSearchQuery = ref('')
 const searching = ref(false)
 let stopViewportTracking = null
 const form = reactive({
@@ -47,6 +49,8 @@ async function open(ingredient = null) {
   searchQuery.value = ''
   searchResults.value = []
   catalogResults.value = []
+  catalogNextOffset.value = null
+  catalogSearchQuery.value = ''
   form.name = ingredient?.name ?? ''
   for (const [field] of nutrients) form[field] = show(ingredient?.[field])
   await nextTick()
@@ -84,16 +88,38 @@ async function searchUSDA() {
 async function searchCatalog() {
   error.value = ''
   catalogResults.value = []
+  catalogNextOffset.value = null
   const query = searchQuery.value.trim()
   if (query.length < 2) {
     error.value = 'Enter at least two characters to search the local catalogue.'
     return
   }
 
+  catalogSearchQuery.value = query
   searching.value = true
   try {
-    catalogResults.value = await api.searchIngredientCatalog(query)
+    const page = await api.searchIngredientCatalog(query)
+    catalogResults.value = page.items
+    catalogNextOffset.value = page.next_offset
     if (!catalogResults.value.length) error.value = 'No matching catalogue items found.'
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    searching.value = false
+  }
+}
+
+async function loadMoreCatalog() {
+  if (catalogNextOffset.value === null || searching.value) return
+  error.value = ''
+  searching.value = true
+  try {
+    const page = await api.searchIngredientCatalog(
+      catalogSearchQuery.value,
+      catalogNextOffset.value
+    )
+    catalogResults.value.push(...page.items)
+    catalogNextOffset.value = page.next_offset
   } catch (e) {
     error.value = e.message
   } finally {
@@ -207,7 +233,7 @@ defineExpose({ open })
             class="btn"
             :class="{ secondary: mode !== value }"
             :aria-pressed="mode === value"
-            @click="mode = value; error = ''; catalogResults = []; searchResults = []"
+            @click="mode = value; error = ''; catalogResults = []; catalogNextOffset = null; searchResults = []"
           >
             {{ label }}
           </button>
@@ -249,8 +275,7 @@ defineExpose({ open })
 
         <template v-else-if="mode === 'catalog'">
           <p class="muted">
-            Search the local nutrition catalogue. Values are per 100 g. Selecting an item adds it to your ingredients;
-            selecting it again refreshes it from the latest catalogue data.
+            Search the local nutrition catalogue.
           </p>
           <div class="usda-search">
             <div class="field grow">
@@ -287,6 +312,15 @@ defineExpose({ open })
               </button>
             </li>
           </ul>
+          <button
+            v-if="catalogNextOffset !== null"
+            type="button"
+            class="btn secondary"
+            :disabled="searching"
+            @click="loadMoreCatalog"
+          >
+            {{ searching ? 'Loading…' : 'Load more' }}
+          </button>
         </template>
 
         <template v-else>

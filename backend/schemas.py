@@ -40,6 +40,11 @@ class IngredientCatalogRead(IngredientCreate):
     already_added: bool = False
 
 
+class IngredientCatalogSearchPage(BaseModel):
+    items: list[IngredientCatalogRead]
+    next_offset: int | None
+
+
 class USDAFoodSearchResult(BaseModel):
     fdc_id: int
     description: str

@@ -35,8 +35,12 @@ Convert your spreadsheet to CSV, then import or update the catalogue from the
 backend directory:
 
 ```powershell
-.\.venv\Scripts\python.exe .\import_ingredient_catalog.py .\nutrition.csv
+uv run python .\import_ingredient_catalog.py .\nutrition.csv
 ```
+
+Run this command from the `backend` directory. `uv run` uses and syncs the
+project's `.venv`, ensuring the importer runs with the dependencies declared in
+`pyproject.toml`.
 
 By default, the CSV header must contain `Key`, `Name`, `kJ`, `Protein`, `Sugar`,
 `Carbs`, and `Fat`. The stable `Key` is used to update an existing catalogue
@@ -44,6 +48,10 @@ item on later imports; rows with a new key are added.
 Nutrient values must be per 100 g, with energy in kJ. Blank nutrient cells are
 stored as unknown. Invalid rows are reported and skipped while other rows
 continue.
+
+Catalogue search ranks exact name matches first, then names beginning with the
+query, then other substring matches. Use **Load more** in the ingredient dialog
+to browse additional results.
 
 If your CSV uses different headers, provide the corresponding options,
 such as `--key-column ItemCode --name-column Description

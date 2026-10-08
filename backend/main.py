@@ -10,7 +10,7 @@ from loguru import logger
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, status
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import func, inspect, select, text, update
+from sqlalchemy import case, func, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -540,14 +540,17 @@ def search_ingredients_usda(
 
 @router.get(
     "/ingredients/catalog/search",
-    response_model=list[schemas.IngredientCatalogRead],
+    response_model=schemas.IngredientCatalogSearchPage,
 )
 def search_ingredient_catalog(
     q: str = Query(min_length=2, max_length=100),
     limit: int = Query(default=10, ge=1, le=25),
+    offset: int = Query(default=0, ge=0),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    query = q.strip().lower()
+    escaped_query = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
     stmt = (
         select(
             models.IngredientCatalog,
@@ -559,17 +562,36 @@ def search_ingredient_catalog(
             .exists()
             .label("already_added"),
         )
-        .where(models.IngredientCatalog.name.ilike(f"%{q.strip()}%"))
-        .order_by(models.IngredientCatalog.name)
-        .limit(limit)
+        .where(models.IngredientCatalog.name.ilike(f"%{escaped_query}%", escape="!"))
+        .order_by(
+            case(
+                (func.lower(models.IngredientCatalog.name) == query, 0),
+                (
+                    func.lower(models.IngredientCatalog.name).like(
+                        f"{escaped_query}%", escape="!"
+                    ),
+                    1,
+                ),
+                else_=2,
+            ),
+            func.lower(models.IngredientCatalog.name),
+            models.IngredientCatalog.id,
+        )
+        .limit(limit + 1)
+        .offset(offset)
     )
-    return [
-        {
-            **schemas.IngredientCatalogRead.model_validate(item).model_dump(),
-            "already_added": already_added,
-        }
-        for item, already_added in db.execute(stmt)
-    ]
+    results = list(db.execute(stmt))
+    has_more = len(results) > limit
+    return {
+        "items": [
+            {
+                **schemas.IngredientCatalogRead.model_validate(item).model_dump(),
+                "already_added": already_added,
+            }
+            for item, already_added in results[:limit]
+        ],
+        "next_offset": offset + limit if has_more else None,
+    }
 
 
 @router.post(
