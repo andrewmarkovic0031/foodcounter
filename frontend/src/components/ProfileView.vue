@@ -149,7 +149,6 @@ async function save() {
       </p>
     </fieldset>
 
-    <p class="muted hint">Leave a field empty to hide that target from Today.</p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <button type="submit" class="btn" :disabled="loading || saving">
       {{ saving ? 'Saving…' : 'Save profile' }}

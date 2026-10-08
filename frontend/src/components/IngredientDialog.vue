@@ -225,7 +225,11 @@ defineExpose({ open })
         </p>
         <fieldset :disabled="readOnly">
           <legend class="sr-only">Ingredient details</legend>
-        <div v-if="!editing" class="seg-options" aria-label="Ingredient source">
+        <div
+          v-if="!editing"
+          class="seg-options ingredient-source-options"
+          aria-label="Ingredient source"
+        >
           <button
             v-for="[value, label] in [['manual', 'Create manually'], ['catalog', 'Search catalogue'], ['usda', 'Search USDA']]"
             :key="value"
@@ -240,6 +244,9 @@ defineExpose({ open })
         </div>
 
         <template v-if="mode === 'manual'">
+
+        <p class="muted hint">Enter nutrition values for 100g of this ingredient.</p>
+
         <div class="field">
           <label for="ingredient-name">Name</label>
           <input
@@ -252,7 +259,6 @@ defineExpose({ open })
           />
         </div>
 
-        <p class="muted hint">Enter nutrition values for 100g of this ingredient.</p>
 
         <div class="grid2">
           <div v-for="[field, label, unit] in nutrients" :key="field" class="field">
@@ -274,12 +280,8 @@ defineExpose({ open })
         </template>
 
         <template v-else-if="mode === 'catalog'">
-          <p class="muted">
-            Search the local nutrition catalogue.
-          </p>
           <div class="usda-search">
             <div class="field grow">
-              <label for="catalog-search-query">Item name</label>
               <input
                 id="catalog-search-query"
                 v-model="searchQuery"
@@ -324,13 +326,8 @@ defineExpose({ open })
         </template>
 
         <template v-else>
-          <p class="muted">
-            Search USDA FoodData Central, then add a result to your ingredient list.
-            Nutrition values are per 100 g.
-          </p>
           <div class="usda-search">
             <div class="field grow">
-              <label for="usda-search-query">Food name</label>
               <input
                 id="usda-search-query"
                 v-model="searchQuery"

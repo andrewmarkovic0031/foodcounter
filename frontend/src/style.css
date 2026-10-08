@@ -385,6 +385,9 @@ textarea {
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
+.ingredient-source-options {
+  margin-bottom: 12px;
+}
 @media (min-width: 440px) {
   .seg-options {
     grid-template-columns: repeat(4, 1fr);
