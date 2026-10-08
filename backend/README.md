@@ -27,6 +27,28 @@ reported while the importer continues with later rows. The final summary reports
 the imported, skipped, and failed row counts, and the script exits unsuccessfully
 if any rows failed.
 
+## Import the local nutrition catalogue from CSV
+
+The ingredient dialog's **Search catalogue** option uses a shared, read-only
+catalogue. Search results are copied to the signed-in user's ingredient list.
+Convert your spreadsheet to CSV, then import or update the catalogue from the
+backend directory:
+
+```powershell
+.\.venv\Scripts\python.exe .\import_ingredient_catalog.py .\nutrition.csv
+```
+
+By default, the CSV header must contain `Key`, `Name`, `kJ`, `Protein`, `Sugar`,
+`Carbs`, and `Fat`. The stable `Key` is used to update an existing catalogue
+item on later imports; rows with a new key are added.
+Nutrient values must be per 100 g, with energy in kJ. Blank nutrient cells are
+stored as unknown. Invalid rows are reported and skipped while other rows
+continue.
+
+If your CSV uses different headers, provide the corresponding options,
+such as `--key-column ItemCode --name-column Description
+--kilojoules-per-100g-column EnergyKJ --carbohydrates-per-100g-column Carbs`.
+
 # Search USDA FoodData Central
 
 Set your USDA API key on the backend process before starting the app. The key is
@@ -46,12 +68,32 @@ imported data; its data is public domain (CC0). See the
 
 # Cloudflare Access identity
 
+The backend defaults to `AUTH_MODE=cloudflare`, so authentication stays enabled
+unless development mode is explicitly selected. For local development, set
+`AUTH_MODE=development` in the backend process environment before starting
+Uvicorn:
+
+```powershell
+$env:AUTH_MODE = "development"
+.\.venv\Scripts\uvicorn.exe main:app --app-dir . --reload
+```
+
+In this mode, all local requests use a persisted **Local Developer**
+(`local@localhost`) profile. It uses the normal database and user-scoped data;
+it does not create mock/sample foods or meals. Do not use development mode on a
+machine or network accessible to other people.
+
+For deployment, explicitly set `AUTH_MODE=cloudflare` along with the required
+Cloudflare Access settings below. Development mode bypasses authentication and
+must never be enabled for a public deployment.
+
 Protect the app's hostname with a Cloudflare Access self-hosted application and
 an Access policy that allows the email addresses permitted to use the app. Copy
 the application's **AUD tag** from its overview, then configure these variables
 on the backend process (for example, in the Raspberry Pi service environment):
 
 ```text
+AUTH_MODE=cloudflare
 CLOUDFLARE_ACCESS_TEAM_DOMAIN=https://<team-name>.cloudflareaccess.com
 CLOUDFLARE_ACCESS_AUD=<application-aud-tag>
 ```

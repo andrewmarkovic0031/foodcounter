@@ -29,6 +29,15 @@ class IngredientRead(IngredientCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     owner_id: int
+    source_catalog_id: int | None = None
+
+
+class IngredientCatalogRead(IngredientCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    external_key: str
+    already_added: bool = False
 
 
 class USDAFoodSearchResult(BaseModel):

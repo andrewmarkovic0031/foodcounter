@@ -12,6 +12,9 @@ class Ingredient(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    source_catalog_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ingredient_catalog.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(100))
     kilojoules_per_100g: Mapped[float | None]
     protein_per_100g: Mapped[float | None]
@@ -20,6 +23,19 @@ class Ingredient(Base):
     fat_per_100g: Mapped[float | None]
 
     food_usages: Mapped[list["FoodIngredient"]] = relationship(back_populates="ingredient")
+
+
+class IngredientCatalog(Base):
+    __tablename__ = "ingredient_catalog"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_key: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), index=True)
+    kilojoules_per_100g: Mapped[float | None]
+    protein_per_100g: Mapped[float | None]
+    carbohydrates_per_100g: Mapped[float | None]
+    sugar_per_100g: Mapped[float | None]
+    fat_per_100g: Mapped[float | None]
 
 
 class Food(Base):

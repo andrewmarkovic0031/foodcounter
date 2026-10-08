@@ -12,6 +12,18 @@ from sqlalchemy.orm import Session
 import models
 from database import get_db
 
+LOCAL_DEVELOPMENT_IDENTITY = ("local-development", "local@localhost")
+
+
+def _auth_mode() -> str:
+    mode = os.getenv("AUTH_MODE", "cloudflare").strip().lower()
+    if mode not in {"cloudflare", "development"}:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "AUTH_MODE must be either 'cloudflare' or 'development'.",
+        )
+    return mode
+
 
 def _access_settings() -> tuple[str, str]:
     team_domain = os.getenv("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "").rstrip("/")
@@ -35,6 +47,9 @@ def _jwks_client(team_domain: str) -> PyJWKClient:
 
 
 def _get_identity(request: Request) -> tuple[str, str]:
+    if _auth_mode() == "development":
+        return LOCAL_DEVELOPMENT_IDENTITY
+
     team_domain, audience = _access_settings()
     token = request.headers.get("cf-access-jwt-assertion")
     if not token:
@@ -88,7 +103,15 @@ def get_current_user(
     created_user = False
     user = db.scalar(select(models.User).where(models.User.subject == subject))
     if user is None:
-        user = models.User(subject=subject, email=email)
+        user = models.User(
+            subject=subject,
+            email=email,
+            name=(
+                "Local Developer"
+                if subject == LOCAL_DEVELOPMENT_IDENTITY[0]
+                else None
+            ),
+        )
         db.add(user)
         try:
             db.commit()

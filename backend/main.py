@@ -39,7 +39,29 @@ async def lifespan(app: FastAPI):
 
     _migrate_user_owned_data()
     _migrate_profile_preferences()
+    _migrate_ingredient_catalog_link()
     yield
+
+
+def _migrate_ingredient_catalog_link() -> None:
+    with engine.begin() as connection:
+        columns = {
+            column["name"]
+            for column in inspect(connection).get_columns("ingredients")
+        }
+        if "source_catalog_id" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE ingredients ADD COLUMN "
+                    "source_catalog_id INTEGER REFERENCES ingredient_catalog(id)"
+                )
+            )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_ingredients_source_catalog_id "
+                "ON ingredients (source_catalog_id)"
+            )
+        )
 
 
 def _migrate_profile_preferences() -> None:
@@ -514,6 +536,98 @@ def search_ingredients_usda(
     limit: int = Query(default=10, ge=1, le=25),
 ):
     return search_usda_foods(q, limit)
+
+
+@router.get(
+    "/ingredients/catalog/search",
+    response_model=list[schemas.IngredientCatalogRead],
+)
+def search_ingredient_catalog(
+    q: str = Query(min_length=2, max_length=100),
+    limit: int = Query(default=10, ge=1, le=25),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    stmt = (
+        select(
+            models.IngredientCatalog,
+            select(models.Ingredient.id)
+            .where(
+                models.Ingredient.source_catalog_id == models.IngredientCatalog.id,
+                models.Ingredient.owner_id == current_user.id,
+            )
+            .exists()
+            .label("already_added"),
+        )
+        .where(models.IngredientCatalog.name.ilike(f"%{q.strip()}%"))
+        .order_by(models.IngredientCatalog.name)
+        .limit(limit)
+    )
+    return [
+        {
+            **schemas.IngredientCatalogRead.model_validate(item).model_dump(),
+            "already_added": already_added,
+        }
+        for item, already_added in db.execute(stmt)
+    ]
+
+
+@router.post(
+    "/ingredients/catalog/{catalog_id}/add",
+    response_model=schemas.IngredientRead,
+)
+def add_catalog_ingredient(
+    catalog_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    catalog_item = db.get(models.IngredientCatalog, catalog_id)
+    if catalog_item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Catalogue ingredient not found")
+
+    ingredient = db.scalar(
+        select(models.Ingredient).where(
+            models.Ingredient.owner_id == current_user.id,
+            models.Ingredient.source_catalog_id == catalog_item.id,
+        )
+    )
+    if ingredient is None:
+        existing_name = db.scalar(
+            select(models.Ingredient).where(
+                models.Ingredient.owner_id == current_user.id,
+                models.Ingredient.name == catalog_item.name,
+            )
+        )
+        if existing_name is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "You already have an ingredient with this name. Rename or remove it before adding the catalogue item.",
+            )
+    if ingredient is None:
+        ingredient = models.Ingredient(
+            owner_id=current_user.id,
+            source_catalog_id=catalog_item.id,
+            name=catalog_item.name,
+        )
+        db.add(ingredient)
+
+    ingredient.source_catalog_id = catalog_item.id
+    ingredient.name = catalog_item.name
+    ingredient.kilojoules_per_100g = catalog_item.kilojoules_per_100g
+    ingredient.protein_per_100g = catalog_item.protein_per_100g
+    ingredient.carbohydrates_per_100g = catalog_item.carbohydrates_per_100g
+    ingredient.sugar_per_100g = catalog_item.sugar_per_100g
+    ingredient.fat_per_100g = catalog_item.fat_per_100g
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "An ingredient with this name already exists in your library.",
+        ) from error
+    db.refresh(ingredient)
+    return ingredient
 
 
 @router.post(

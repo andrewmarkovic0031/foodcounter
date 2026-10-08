@@ -32,6 +32,9 @@ export const api = {
   listIngredients: () => request('/ingredients?limit=200'),
   searchUSDAIngredients: (query) =>
     request(`/ingredients/usda/search?q=${encodeURIComponent(query)}&limit=10`),
+  searchIngredientCatalog: (query) =>
+    request(`/ingredients/catalog/search?q=${encodeURIComponent(query)}&limit=10`),
+  addCatalogIngredient: (id) => request(`/ingredients/catalog/${id}/add`, { method: 'POST' }),
   createIngredient: (body) => request('/ingredients', withBody('POST', body)),
   updateIngredient: (id, body) => request(`/ingredients/${id}`, withBody('PATCH', body)),
   deleteIngredient: (id) => request(`/ingredients/${id}`, { method: 'DELETE' }),

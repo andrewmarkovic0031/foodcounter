@@ -17,6 +17,7 @@ const readOnly = computed(
 const mode = ref('manual')
 const searchQuery = ref('')
 const searchResults = ref([])
+const catalogResults = ref([])
 const searching = ref(false)
 let stopViewportTracking = null
 const form = reactive({
@@ -45,6 +46,7 @@ async function open(ingredient = null) {
   error.value = ''
   searchQuery.value = ''
   searchResults.value = []
+  catalogResults.value = []
   form.name = ingredient?.name ?? ''
   for (const [field] of nutrients) form[field] = show(ingredient?.[field])
   await nextTick()
@@ -76,6 +78,41 @@ async function searchUSDA() {
     error.value = e.message
   } finally {
     searching.value = false
+  }
+}
+
+async function searchCatalog() {
+  error.value = ''
+  catalogResults.value = []
+  const query = searchQuery.value.trim()
+  if (query.length < 2) {
+    error.value = 'Enter at least two characters to search the local catalogue.'
+    return
+  }
+
+  searching.value = true
+  try {
+    catalogResults.value = await api.searchIngredientCatalog(query)
+    if (!catalogResults.value.length) error.value = 'No matching catalogue items found.'
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    searching.value = false
+  }
+}
+
+async function addCatalogIngredient(result) {
+  error.value = ''
+  busy.value = true
+  try {
+    await api.addCatalogIngredient(result.id)
+    await refreshCatalogs()
+    el.value.close()
+    notify(result.already_added ? 'Ingredient updated from catalogue' : 'Ingredient added')
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
   }
 }
 
@@ -164,22 +201,15 @@ defineExpose({ open })
           <legend class="sr-only">Ingredient details</legend>
         <div v-if="!editing" class="seg-options" aria-label="Ingredient source">
           <button
+            v-for="[value, label] in [['manual', 'Create manually'], ['catalog', 'Search catalogue'], ['usda', 'Search USDA']]"
+            :key="value"
             type="button"
             class="btn"
-            :class="{ secondary: mode !== 'manual' }"
-            :aria-pressed="mode === 'manual'"
-            @click="mode = 'manual'; error = ''"
+            :class="{ secondary: mode !== value }"
+            :aria-pressed="mode === value"
+            @click="mode = value; error = ''; catalogResults = []; searchResults = []"
           >
-            Create manually
-          </button>
-          <button
-            type="button"
-            class="btn"
-            :class="{ secondary: mode !== 'usda' }"
-            :aria-pressed="mode === 'usda'"
-            @click="mode = 'usda'; error = ''"
-          >
-            Search USDA
+            {{ label }}
           </button>
         </div>
 
@@ -215,6 +245,48 @@ defineExpose({ open })
             </div>
           </div>
         </div>
+        </template>
+
+        <template v-else-if="mode === 'catalog'">
+          <p class="muted">
+            Search the local nutrition catalogue. Values are per 100 g. Selecting an item adds it to your ingredients;
+            selecting it again refreshes it from the latest catalogue data.
+          </p>
+          <div class="usda-search">
+            <div class="field grow">
+              <label for="catalog-search-query">Item name</label>
+              <input
+                id="catalog-search-query"
+                v-model="searchQuery"
+                type="search"
+                minlength="2"
+                placeholder="Search catalogue"
+                autocomplete="off"
+                @keydown.enter.prevent="searchCatalog"
+              />
+            </div>
+            <button type="button" class="btn secondary" :disabled="searching" @click="searchCatalog">
+              {{ searching ? 'Searching…' : 'Search' }}
+            </button>
+          </div>
+
+          <ul v-if="catalogResults.length" class="usda-results" aria-label="Local catalogue results">
+            <li v-for="result in catalogResults" :key="result.id" class="card usda-result">
+              <div class="usda-result-copy">
+                <strong>{{ result.name }}</strong>
+                <span class="muted">
+                  {{ formatEnergy(result.kilojoules_per_100g) }}
+                  · P {{ result.protein_per_100g ?? '–' }} g
+                  · C {{ result.carbohydrates_per_100g ?? '–' }} g
+                  · F {{ result.fat_per_100g ?? '–' }} g
+                  · S {{ result.sugar_per_100g ?? '–' }} g
+                </span>
+              </div>
+              <button type="button" class="btn" :disabled="busy" @click="addCatalogIngredient(result)">
+                {{ result.already_added ? 'Update' : 'Add' }}
+              </button>
+            </li>
+          </ul>
         </template>
 
         <template v-else>
